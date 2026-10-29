@@ -1,0 +1,1632 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>3.3 逆运动学与求解验证 · 几何解析法 vs 数值迭代法</title>
+<style>
+  :root{
+    --bg:#05080f;
+    --bg2:#0a1020;
+    --panel:rgba(15,23,42,.72);
+    --panel-solid:#0d1526;
+    --line:rgba(148,163,184,.18);
+    --line-strong:rgba(148,163,184,.34);
+    --text:#e9eefb;
+    --muted:#8fa0bd;
+    --dim:#5f6f8c;
+    --cyan:#22d3ee;
+    --cyan-soft:rgba(34,211,238,.14);
+    --amber:#fbbf24;
+    --amber-soft:rgba(251,191,36,.14);
+    --pink:#f472b6;
+    --green:#4ade80;
+    --red:#f87171;
+    --radius:16px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .aurora{
+    position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(900px 520px at 12% -8%, rgba(34,211,238,.16), transparent 60%),
+      radial-gradient(760px 480px at 92% 4%, rgba(129,90,255,.14), transparent 62%),
+      radial-gradient(700px 500px at 50% 110%, rgba(251,191,36,.08), transparent 65%);
+  }
+  .grid-bg{
+    position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35;
+    background-image:linear-gradient(rgba(148,163,184,.055) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(148,163,184,.055) 1px,transparent 1px);
+    background-size:52px 52px;
+    mask-image:radial-gradient(ellipse at 50% 0%,#000 30%,transparent 78%);
+  }
+  header{
+    position:sticky;top:0;z-index:50;
+    backdrop-filter:blur(18px);
+    background:rgba(5,8,15,.72);
+    border-bottom:1px solid var(--line);
+  }
+  .bar{
+    max-width:1480px;margin:0 auto;padding:14px 26px;
+    display:flex;align-items:center;gap:18px;justify-content:space-between;
+  }
+  .brand{display:flex;align-items:center;gap:13px;min-width:0}
+  .logo{
+    width:42px;height:42px;border-radius:12px;flex:none;
+    display:grid;place-items:center;font-weight:800;font-size:13px;letter-spacing:.5px;
+    background:linear-gradient(140deg,rgba(34,211,238,.22),rgba(129,90,255,.22));
+    border:1px solid rgba(34,211,238,.4);
+    color:#a5f3fc;box-shadow:0 0 28px rgba(34,211,238,.22) inset;
+  }
+  .brand h1{font-size:16px;font-weight:650;letter-spacing:.2px;white-space:nowrap}
+  .brand p{font-size:12px;color:var(--muted);white-space:nowrap}
+  nav{display:flex;gap:4px;flex-wrap:wrap}
+  nav a{
+    color:var(--muted);text-decoration:none;font-size:13px;padding:7px 12px;border-radius:9px;
+    transition:.18s;
+  }
+  nav a:hover{color:var(--text);background:rgba(148,163,184,.1)}
+  main{position:relative;z-index:1;max-width:1480px;margin:0 auto;padding:26px 26px 80px}
+
+  .hero-title{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:18px;flex-wrap:wrap}
+  .hero-title h2{font-size:25px;font-weight:700;letter-spacing:.3px}
+  .hero-title h2 span{
+    background:linear-gradient(92deg,var(--cyan),#a78bfa 60%,var(--amber));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero-title p{color:var(--muted);font-size:13px;margin-top:4px}
+  .pill-row{display:flex;gap:8px;flex-wrap:wrap}
+  .pill{
+    font-size:11.5px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);
+    color:var(--muted);background:rgba(148,163,184,.05);
+  }
+  .pill b{color:var(--text);font-weight:600}
+
+  .workbench{display:grid;grid-template-columns:minmax(0,1fr) 402px;gap:18px;align-items:start}
+
+  .stage-card{
+    position:sticky;top:84px;
+    background:linear-gradient(180deg,rgba(15,23,42,.9),rgba(9,14,26,.92));
+    border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;box-shadow:0 24px 60px -30px rgba(0,0,0,.9);
+  }
+  .stage-top{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap;
+  }
+  .chip{font-size:11.5px;color:var(--muted);letter-spacing:.4px}
+  .chip b{color:var(--cyan);font-weight:600}
+  .seg{display:flex;gap:2px;padding:3px;background:rgba(2,6,14,.7);border:1px solid var(--line);border-radius:11px}
+  .seg button{
+    border:0;background:transparent;color:var(--muted);font-size:12.5px;
+    padding:6px 12px;border-radius:8px;cursor:pointer;transition:.18s;font-family:inherit;
+  }
+  .seg button:hover{color:var(--text)}
+  .seg button.active{background:rgba(34,211,238,.14);color:#c7f4ff;box-shadow:0 0 0 1px rgba(34,211,238,.32) inset}
+  .stage-body{position:relative;height:468px}
+  #stage{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+  .stage-foot{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:9px 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--dim);
+  }
+  .legend{display:flex;gap:14px;flex-wrap:wrap}
+  .lg{display:flex;align-items:center;gap:6px}
+  .dot{width:8px;height:8px;border-radius:50%}
+  .dot.c{background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+  .dot.a{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+  .dot.p{background:var(--pink);box-shadow:0 0 10px var(--pink)}
+  .dot.g{background:#7f8ea8}
+
+  .panel{display:flex;flex-direction:column;gap:14px}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:15px 16px;backdrop-filter:blur(12px);
+  }
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
+  .card-head h3{font-size:13px;font-weight:600;letter-spacing:.4px;display:flex;align-items:center;gap:8px}
+  .tag{font-size:10px;padding:2px 7px;border-radius:5px;letter-spacing:.5px;font-weight:600}
+  .tag.cyan{color:#a5f3fc;background:var(--cyan-soft);border:1px solid rgba(34,211,238,.32)}
+  .tag.amber{color:#fde68a;background:var(--amber-soft);border:1px solid rgba(251,191,36,.32)}
+  .tag.gray{color:#b6c3d8;background:rgba(148,163,184,.1);border:1px solid var(--line)}
+  .tag.green{color:#bbf7d0;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.3)}
+  .tag.red{color:#fecaca;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.32)}
+
+  .coord-row{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:11px}
+  .coord{background:rgba(2,6,14,.55);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  .coord .k{font-size:10.5px;color:var(--dim);letter-spacing:.6px}
+  .coord .v{font-family:var(--mono);font-size:15px;color:var(--text);margin-top:1px}
+  .coord .v small{font-size:10px;color:var(--dim);margin-left:2px}
+  .coord.acc .v{color:var(--pink)}
+
+  .status{
+    display:flex;align-items:center;gap:8px;font-size:12px;padding:8px 10px;border-radius:9px;
+    border:1px solid var(--line);background:rgba(2,6,14,.5);color:var(--muted);
+  }
+  .status.ok{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.08);color:#bbf7d0}
+  .status.warn{border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.08);color:#fde68a}
+  .status.bad{border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.08);color:#fecaca}
+
+  .kv{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+  .kv .item{background:rgba(2,6,14,.45);border:1px solid var(--line);border-radius:9px;padding:7px 9px}
+  .kv .k{font-size:10.5px;color:var(--dim)}
+  .kv .v{font-family:var(--mono);font-size:13.5px;margin-top:1px}
+  .kv .v.cy{color:#9ceaf7}
+  .kv .v.am{color:#fcd34d}
+  .kv .v.mu{color:var(--muted);font-size:12px}
+
+  .sub-label{font-size:10.5px;color:var(--dim);letter-spacing:.7px;margin:12px 0 6px;text-transform:uppercase}
+  .slider-row{display:grid;grid-template-columns:78px 1fr 58px;align-items:center;gap:9px;margin-bottom:7px}
+  .slider-row label{font-size:11.5px;color:var(--muted)}
+  .slider-row .val{font-family:var(--mono);font-size:11.5px;text-align:right;color:#9ceaf7}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;height:4px;border-radius:3px;background:rgba(148,163,184,.22);outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:13px;height:13px;border-radius:50%;
+    background:linear-gradient(180deg,#7dd3fc,#22d3ee);cursor:pointer;
+    box-shadow:0 0 0 3px rgba(34,211,238,.16),0 0 12px rgba(34,211,238,.5);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:13px;height:13px;border:0;border-radius:50%;background:#22d3ee;cursor:pointer;
+  }
+  .btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+  button.act{
+    font-family:inherit;font-size:11.5px;padding:7px 12px;border-radius:9px;cursor:pointer;
+    background:rgba(148,163,184,.08);border:1px solid var(--line);color:#cdd8ea;transition:.18s;
+  }
+  button.act:hover{background:rgba(148,163,184,.16);border-color:var(--line-strong);color:#fff}
+  button.act.primary{background:rgba(34,211,238,.14);border-color:rgba(34,211,238,.38);color:#b8f2ff}
+  button.act.primary:hover{background:rgba(34,211,238,.24)}
+  button.act.warn{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.34);color:#fde68a}
+  button.act:disabled{opacity:.45;cursor:not-allowed}
+
+  .table-mini{max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:9px;margin-top:8px}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  table th{
+    text-align:right;font-weight:500;color:var(--dim);padding:6px 8px;position:sticky;top:0;
+    background:#0b1222;border-bottom:1px solid var(--line);font-size:10.5px;letter-spacing:.4px;
+  }
+  table td{text-align:right;padding:5px 8px;font-family:var(--mono);color:#c3cee0;border-bottom:1px solid rgba(148,163,184,.07)}
+  table th:first-child,table td:first-child{text-align:left}
+  table tr.cur td{background:rgba(251,191,36,.09);color:#fde68a}
+
+  #chart{display:block;width:100%;height:96px;margin-top:6px}
+
+  /* 章节通用 */
+  section.block{margin-top:34px}
+  .block-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .block-head h2{font-size:19px;font-weight:650}
+  .block-head .no{
+    font-family:var(--mono);font-size:11px;color:var(--cyan);border:1px solid rgba(34,211,238,.35);
+    padding:2px 7px;border-radius:6px;background:rgba(34,211,238,.08);
+  }
+  .block-head p{color:var(--muted);font-size:12.5px}
+
+  .cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .challenge{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px 17px;position:relative;overflow:hidden;transition:.2s;
+  }
+  .challenge:hover{border-color:var(--line-strong);transform:translateY(-2px)}
+  .challenge::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:2px;
+    background:linear-gradient(180deg,var(--cyan),transparent);
+  }
+  .challenge h4{font-size:14px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .challenge .num{
+    font-family:var(--mono);font-size:11px;color:var(--dim);width:22px;height:22px;border-radius:6px;
+    display:grid;place-items:center;background:rgba(148,163,184,.08);border:1px solid var(--line);
+  }
+  .challenge p{font-size:12.5px;color:var(--muted);line-height:1.72}
+  .challenge p b{color:#dbe5f5;font-weight:600}
+  .challenge .demo{
+    margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--dim);
+    background:rgba(2,6,14,.5);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+  }
+  .challenge .demo em{font-style:normal;color:var(--amber)}
+
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .method{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px 16px;
+  }
+  .method.geo{border-top:2px solid var(--cyan)}
+  .method.num{border-top:2px solid var(--amber)}
+  .method h3{font-size:15px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+  .method .formula{
+    font-family:"Cambria Math",Georgia,"Times New Roman",serif;
+    font-size:14.5px;line-height:2.05;color:#dbe7fb;
+    background:rgba(2,6,14,.5);border:1px solid var(--line);border-radius:10px;
+    padding:11px 13px;margin-bottom:10px;overflow-x:auto;white-space:nowrap;
+  }
+  .formula i{font-style:italic;color:#a5f3fc;font-family:inherit}
+  .method.num .formula i{color:#fde68a}
+  .method ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+  .method li{font-size:12.5px;color:var(--muted);padding-left:16px;position:relative;line-height:1.65}
+  .method li::before{content:"▸";position:absolute;left:0;color:var(--dim)}
+  .method li b{color:#dbe5f5;font-weight:600}
+
+  .compare-wrap{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  table.compare{font-size:12.5px}
+  table.compare th{text-align:left;padding:12px 16px;background:rgba(2,6,14,.6);font-size:11.5px;letter-spacing:.5px}
+  table.compare th:nth-child(2){color:#9ceaf7}
+  table.compare th:nth-child(3){color:#fcd34d}
+  table.compare td{text-align:left;padding:11px 16px;border-top:1px solid var(--line);color:#c3cee0;vertical-align:top}
+  table.compare td:first-child{color:var(--muted);width:26%}
+  table.compare td b{color:#fff;font-weight:600}
+  table.compare tr:hover td{background:rgba(148,163,184,.05)}
+  .ok-i{color:var(--green)}
+  .bad-i{color:var(--red)}
+
+  .dir-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .dir-pad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,52px);gap:8px;justify-content:center;padding:6px 0 2px}
+  .dir-pad button{
+    font-family:var(--mono);border-radius:11px;cursor:pointer;transition:.16s;
+    background:rgba(148,163,184,.08);border:1px solid var(--line);color:#dbe5f5;font-size:13px;
+  }
+  .dir-pad button:hover{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.42);color:#c7f4ff}
+  .dir-pad .hintcell{display:grid;place-items:center;font-size:10.5px;color:var(--dim);font-family:inherit}
+  .dir-pad .ghost{opacity:0;pointer-events:none}
+  .dir-pad button.ax{font-size:12px}
+
+  .log-table{max-height:290px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+  .empty{padding:26px 16px;text-align:center;color:var(--dim);font-size:12px}
+
+  .record{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .record .note{font-size:11.5px;color:var(--dim)}
+
+  footer{
+    max-width:1480px;margin:0 auto;padding:24px 26px 40px;color:var(--dim);font-size:11.5px;
+    border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  }
+  .toast{
+    position:fixed;left:50%;bottom:34px;transform:translate(-50%,20px);z-index:200;
+    background:rgba(13,21,38,.96);border:1px solid rgba(34,211,238,.4);color:#c7f4ff;
+    padding:10px 18px;border-radius:11px;font-size:12.5px;opacity:0;transition:.28s;pointer-events:none;
+    box-shadow:0 14px 40px -14px rgba(0,0,0,.9);
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media (max-width:1080px){
+    .workbench{grid-template-columns:1fr}
+    .stage-card{position:relative;top:0}
+    .stage-body{height:440px}
+    .cards3{grid-template-columns:1fr}
+    .two,.dir-grid{grid-template-columns:1fr}
+  }
+  @media (max-width:720px){
+    main{padding:18px 14px 60px}
+    .bar{padding:12px 14px}
+    .brand h1{font-size:14px;white-space:normal}
+    .brand p{display:none}
+    nav{display:none}
+    .stage-body{height:380px}
+    .hero-title h2{font-size:20px}
+    .kv{grid-template-columns:1fr 1fr}
+  }
+</style>
+</head>
+<body>
+<div class="aurora"></div>
+<div class="grid-bg"></div>
+
+<header>
+  <div class="bar">
+    <div class="brand">
+      <div class="logo">IK</div>
+      <div>
+        <h1>3.3 逆运动学与求解验证</h1>
+        <p>机器人学基础与实践 · 第 3 章 运动学建模与求解</p>
+      </div>
+    </div>
+    <nav>
+      <a href="#workbench">逆解工作台</a>
+      <a href="#challenges">三大挑战</a>
+      <a href="#theory">求解原理</a>
+      <a href="#compare">方法对比</a>
+      <a href="#control">方向控制</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero-title">
+    <div>
+      <h2>平面二连杆机械臂 · <span>几何解析法 vs 数值迭代法</span></h2>
+      <p>给定末端目标 (x, y)，求关节角 θ₁ / θ₂，并完成限位检查与正解回代验证。L₁ = 6 cm，L₂ = 4 cm。</p>
+    </div>
+    <div class="pill-row">
+      <div class="pill">工作空间 <b>2 ~ 10 cm</b></div>
+      <div class="pill">容差 <b>0.001 cm</b></div>
+      <div class="pill">单位 <b>cm / deg</b></div>
+    </div>
+  </div>
+
+  <!-- ============ 工作台 ============ -->
+  <section class="workbench" id="workbench">
+    <div class="stage-card">
+      <div class="stage-top">
+        <div class="chip">平面二连杆 · <b>L₁=6</b> / <b>L₂=4</b> cm · 拖动可移动目标</div>
+        <div class="seg" id="modeSeg">
+          <button data-mode="geo">几何解析法</button>
+          <button data-mode="num">数值迭代法</button>
+          <button data-mode="both" class="active">双法对比</button>
+        </div>
+      </div>
+      <div class="stage-body">
+        <canvas id="stage"></canvas>
+      </div>
+      <div class="stage-foot">
+        <div class="legend">
+          <span class="lg"><i class="dot c"></i>解析法解</span>
+          <span class="lg"><i class="dot a"></i>数值法解</span>
+          <span class="lg"><i class="dot p"></i>目标点</span>
+          <span class="lg"><i class="dot g"></i>迭代初值</span>
+        </div>
+        <span id="stageHint">在画布上拖动 · 目标实时更新</span>
+      </div>
+    </div>
+
+    <aside class="panel">
+      <div class="card">
+        <div class="card-head">
+          <h3>目标与工作空间</h3>
+          <span class="tag gray" id="wsTag">可达</span>
+        </div>
+        <div class="coord-row">
+          <div class="coord acc"><div class="k">X (cm)</div><div class="v" id="tgtX">6.000</div></div>
+          <div class="coord acc"><div class="k">Y (cm)</div><div class="v" id="tgtY">4.000</div></div>
+          <div class="coord"><div class="k">r = √(x²+y²)</div><div class="v" id="tgtR">7.211</div></div>
+        </div>
+        <div class="status ok" id="wsStatus">目标在工作空间环带内（2 cm ≤ r ≤ 10 cm）</div>
+        <div class="btns">
+          <button class="act" data-preset="multi">示例 (6,4) 多解</button>
+          <button class="act" data-preset="over">(11,0) 超程</button>
+          <button class="act" data-preset="under">(1,0) 内缩</button>
+          <button class="act" data-preset="sing">(10,0) 奇异</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>几何解析法</h3>
+          <span class="tag cyan">闭式解</span>
+        </div>
+        <div class="kv">
+          <div class="item"><div class="k">θ₁（当前分支）</div><div class="v cy" id="geo1">0.00°</div></div>
+          <div class="item"><div class="k">θ₂（当前分支）</div><div class="v cy" id="geo2">90.00°</div></div>
+          <div class="item"><div class="k">另一分支 θ₁′</div><div class="v mu" id="geo1b">67.38°</div></div>
+          <div class="item"><div class="k">另一分支 θ₂′</div><div class="v mu" id="geo2b">−90.00°</div></div>
+        </div>
+        <div class="sub-label">正解回代验证</div>
+        <div class="status ok" id="geoVerify">✓ 回代 (6.000, 4.000) cm · 误差 0.0000 mm · 限位合法</div>
+        <div class="btns">
+          <button class="act primary" id="branchBtn">切换肘上 / 肘下</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>数值迭代法</h3>
+          <span class="tag amber">阻尼最小二乘</span>
+        </div>
+        <div class="kv">
+          <div class="item"><div class="k">迭代次数</div><div class="v am" id="numIter">—</div></div>
+          <div class="item"><div class="k">最终误差</div><div class="v am" id="numErr">—</div></div>
+          <div class="item"><div class="k">θ₁ / θ₂</div><div class="v am" id="numQ">—</div></div>
+          <div class="item"><div class="k">可操作度 |det J|</div><div class="v am" id="numManip">—</div></div>
+        </div>
+        <div class="status warn" id="numStatus" style="margin-top:9px">—</div>
+        <div class="sub-label">误差收敛（对数坐标）</div>
+        <canvas id="chart"></canvas>
+        <div class="sub-label">迭代过程</div>
+        <div class="table-mini">
+          <table>
+            <thead><tr><th>k</th><th>θ₁ (°)</th><th>θ₂ (°)</th><th>误差 (mm)</th></tr></thead>
+            <tbody id="iterBody"></tbody>
+          </table>
+        </div>
+        <div class="btns">
+          <button class="act primary" id="replayBtn">▶ 重播迭代</button>
+          <button class="act" id="stepBtn">单步</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>求解参数</h3><span class="tag gray">实时生效</span></div>
+        <div class="slider-row">
+          <label>初值 θ₁</label>
+          <input type="range" id="q0a" min="-180" max="180" step="1" value="30" />
+          <span class="val" id="q0aV">30°</span>
+        </div>
+        <div class="slider-row">
+          <label>初值 θ₂</label>
+          <input type="range" id="q0b" min="-180" max="180" step="1" value="-60" />
+          <span class="val" id="q0bV">−60°</span>
+        </div>
+        <div class="slider-row">
+          <label>阻尼 λ</label>
+          <input type="range" id="lam" min="1" max="80" step="1" value="8" />
+          <span class="val" id="lamV">0.08</span>
+        </div>
+        <div class="btns">
+          <button class="act" id="resetBtn">恢复默认</button>
+          <button class="act" id="randBtn">随机目标</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ============ 三大挑战 ============ -->
+  <section class="block" id="challenges">
+    <div class="block-head">
+      <span class="no">MODULE 01</span>
+      <h2>逆解的三个挑战</h2>
+      <p>多解 · 无解 · 奇异姿态</p>
+    </div>
+    <div class="cards3">
+      <div class="challenge">
+        <h4><span class="num">01</span>同一个目标，多组解</h4>
+        <p>把底座、肘部、目标连成三角形：肘部可以落在连线<b>两侧</b>，于是同一个末端位置对应两组关节角。程序算出角度后，还要<b>检查关节是否越限</b>、<b>当前姿态离哪组解更近</b>。</p>
+        <div class="demo">目标 (6,4)：θ₁=0°, θ₂=+90° 与 θ₁=67.38°, θ₂=−90° 均可达同一点</div>
+      </div>
+      <div class="challenge">
+        <h4><span class="num">02</span>有些目标没有解</h4>
+        <p>工作空间是末端可达范围。目标距离 r 超过 <b>L₁+L₂=10 cm</b>，或小于 <b>|L₁−L₂|=2 cm</b> 时无解。注意：<b>距离合格 ≠ 关节限位允许</b>。</p>
+        <div class="demo">(11,0) → r=11 cm <em>超出伸展</em>；(1,0) → r=1 cm <em>小于最小折叠</em></div>
+      </div>
+      <div class="challenge">
+        <h4><span class="num">03</span>奇异姿态让求解困难</h4>
+        <p>手臂完全伸直时（θ₂=0°），可操作度 <b>|det J| = L₁L₂·|sin θ₂| → 0</b>，某些方向无法靠小幅关节转动实现，数值法在此处非常敏感。</p>
+        <div class="demo">目标 (10,0)：θ₂=0°，det J = 0 <em>奇异</em></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 原理 ============ -->
+  <section class="block" id="theory">
+    <div class="block-head">
+      <span class="no">MODULE 02</span>
+      <h2>两种求解思路</h2>
+      <p>几何直接算角 vs 迭代逐步逼近</p>
+    </div>
+    <div class="two">
+      <div class="method geo">
+        <h3>几何解析法 <span class="tag cyan">一步到位</span></h3>
+        <div class="formula">
+          <i>r</i> = √(<i>x</i>² + <i>y</i>²)<br />
+          cos <i>θ</i><sub>2</sub> = (<i>r</i>² − <i>L</i><sub>1</sub>² − <i>L</i><sub>2</sub>²) / (2<i>L</i><sub>1</sub><i>L</i><sub>2</sub>)<br />
+          <i>θ</i><sub>2</sub> = ± arccos(cos <i>θ</i><sub>2</sub>)<br />
+          <i>θ</i><sub>1</sub> = atan2(<i>y</i>, <i>x</i>) − atan2(<i>L</i><sub>2</sub>sin<i>θ</i><sub>2</sub>, <i>L</i><sub>1</sub>+<i>L</i><sub>2</sub>cos<i>θ</i><sub>2</sub>)
+        </div>
+        <ul>
+          <li>本质：<b>余弦定理</b>解三角形（底座—肘—目标）</li>
+          <li>优点：无迭代、精度高、可直接得到<b>两组解</b></li>
+          <li>局限：强依赖结构，换构型公式要重推；<b>结构复杂时难以推导</b></li>
+          <li>适用：本课平面二连杆这类结构清晰的模型</li>
+        </ul>
+      </div>
+      <div class="method num">
+        <h3>数值迭代法 <span class="tag amber">逐步逼近</span></h3>
+        <div class="formula">
+          <i>x</i> = <i>L</i><sub>1</sub>cos<i>θ</i><sub>1</sub> + <i>L</i><sub>2</sub>cos(<i>θ</i><sub>1</sub>+<i>θ</i><sub>2</sub>)<br />
+          <i>J</i> = ∂(<i>x</i>,<i>y</i>)/∂(<i>θ</i><sub>1</sub>,<i>θ</i><sub>2</sub>)<br />
+          Δ<i>θ</i> = <i>J</i><sup>T</sup>(<i>JJ</i><sup>T</sup> + <i>λ</i>²<i>I</i>)<sup>−1</sup>(<i>x</i><sub>d</sub> − <i>f</i>(<i>θ</i>))<br />
+          <i>θ</i><sub>k+1</sub> = <i>θ</i><sub>k</sub> + Δ<i>θ</i>,&nbsp; 直到 ‖<i>e</i>‖ &lt; ε
+        </div>
+        <ul>
+          <li>本质：<b>正解→误差→调角</b>，反复迭代（牛顿/雅可比）</li>
+          <li>优点：通用，不依赖闭式公式，复杂结构也能用</li>
+          <li>局限：受<b>初值、停止条件、奇异姿态</b>影响，可能收敛到不同分支</li>
+          <li>适用：复杂/冗余机械臂，或解析式难以推导时</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 对比 ============ -->
+  <section class="block" id="compare">
+    <div class="block-head">
+      <span class="no">MODULE 03</span>
+      <h2>解析法与数值法综合对比</h2>
+      <p>数值随当前目标实时刷新</p>
+    </div>
+    <div class="compare-wrap">
+      <table class="compare">
+        <thead>
+          <tr><th>对比维度</th><th>解析法（几何直接求法）</th><th>数值法（迭代逼近求法）</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>怎样找角度</td><td>利用当前结构的几何关系直接计算</td><td>从初值出发，反复算位置与误差并调整</td></tr>
+          <tr><td>本次迭代次数</td><td><b>0</b>（闭式一次算完）</td><td><b id="cmpIter">—</b></td></tr>
+          <tr><td>末端误差</td><td><b id="cmpGeoErr">—</b></td><td><b id="cmpNumErr">—</b></td></tr>
+          <tr><td>单次求解耗时</td><td><b id="cmpGeoT">—</b></td><td><b id="cmpNumT">—</b></td></tr>
+          <tr><td>多解处理</td><td>直接给出肘上/肘下两组解</td><td>由初值决定收敛到其中一组</td></tr>
+          <tr><td>目标越界时</td><td>距离判定直接<b class="bad-i">报无解</b></td><td>停在边界，<b class="bad-i">残余误差不为零</b></td></tr>
+          <tr><td>奇异姿态</td><td>公式仍可算，但姿态退化</td><td>雅可比病态，需阻尼 λ 抑制</td></tr>
+          <tr><td>都要做的检查</td><td colspan="2"><b>关节限位核对 + 正解回代目标位置</b>（当前：<span id="cmpCheck">—</span>）</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 方向控制 ============ -->
+  <section class="block" id="control">
+    <div class="block-head">
+      <span class="no">MODULE 04</span>
+      <h2>末端方向控制</h2>
+      <p>沿坐标轴步进 → 逆解 → 驱动模型 → 正解刷新</p>
+    </div>
+    <div class="dir-grid">
+      <div class="card">
+        <div class="card-head"><h3>方向步进</h3><span class="tag gray" id="stepTag">步长 0.5 cm</span></div>
+        <div class="dir-pad">
+          <div class="ghost"></div>
+          <button class="ax" data-dir="up">+Y</button>
+          <div class="ghost"></div>
+          <button class="ax" data-dir="left">−X</button>
+          <div class="hintcell">5 步<br/>闭环</div>
+          <button class="ax" data-dir="right">+X</button>
+          <div class="ghost"></div>
+          <button class="ax" data-dir="down">−Y</button>
+          <div class="ghost"></div>
+        </div>
+        <div class="status" id="dirStatus" style="margin-top:10px">
+          当前姿态：θ₁ = <span id="curQ1">—</span>，θ₂ = <span id="curQ2">—</span>
+        </div>
+        <div class="record">
+          <button class="act primary" id="copyBtn">复制实验记录</button>
+          <span class="note">记录目标、候选角、限位与回代误差</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>操作日志</h3><span class="tag gray" id="logCount">0 条</span></div>
+        <div class="log-table" id="logWrap">
+          <div class="empty">点击方向按钮，记录一次完整的「逆解—回代」闭环</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>机器人学基础与实践 · 3.3 逆运动学与求解验证 · 几何解析法 / 数值迭代法</span>
+    <span>模型：平面二连杆 L₁=6cm L₂=4cm · 关节限位 ±170° / ±150°</span>
+  </footer>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ========================================================
+     模型常量
+     ======================================================== */
+  const L1 = 6, L2 = 4;
+  const RMAX = L1 + L2;          // 10 cm
+  const RMIN = Math.abs(L1 - L2); // 2 cm
+  const DEG = 180 / Math.PI;
+  const RAD = Math.PI / 180;
+  const LIM = { t1: [-170, 170], t2: [-150, 150] };
+  const TOL = 1e-4;               // cm，即 0.001 mm
+
+  /* ========================================================
+     状态
+     ======================================================== */
+  const S = {
+    mode: "both",
+    target: { x: 6, y: 4 },
+    branch: "up",                 // up => θ2 > 0
+    q0: { t1: 30 * RAD, t2: -60 * RAD },
+    lambda: 0.08,
+    maxIter: 200,
+    geo: null,
+    num: null,
+    play: { t: 0, active: false },
+    log: [],
+    geoTime: 0,
+    dragging: false
+  };
+
+  /* ========================================================
+     数学
+     ======================================================== */
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const wrap = a => {
+    a = (a + Math.PI) % (2 * Math.PI);
+    if (a < 0) a += 2 * Math.PI;
+    return a - Math.PI;
+  };
+  const hypot = (x, y) => Math.sqrt(x * x + y * y);
+
+  function fk(t1, t2) {
+    return {
+      x: L1 * Math.cos(t1) + L2 * Math.cos(t1 + t2),
+      y: L1 * Math.sin(t1) + L2 * Math.sin(t1 + t2)
+    };
+  }
+  function jac(t1, t2) {
+    const s1 = Math.sin(t1), c1 = Math.cos(t1);
+    const s12 = Math.sin(t1 + t2), c12 = Math.cos(t1 + t2);
+    return [
+      [-L1 * s1 - L2 * s12, -L2 * s12],
+      [L1 * c1 + L2 * c12, L2 * c12]
+    ];
+  }
+
+  /* ---------- 几何解析法：余弦定理解三角形 ---------- */
+  function solveGeo(target, branch) {
+    const { x, y } = target;
+    const r2 = x * x + y * y;
+    const r = Math.sqrt(r2);
+    if (r > RMAX + 1e-9 || r < RMIN - 1e-9) {
+      return { ok: false, r, reason: r > RMAX ? "over" : "under" };
+    }
+    const c2 = clamp((r2 - L1 * L1 - L2 * L2) / (2 * L1 * L2), -1, 1);
+    const a2 = Math.acos(c2);
+    const t2 = branch === "up" ? a2 : -a2;
+    const t1 = Math.atan2(y, x) - Math.atan2(L2 * Math.sin(t2), L1 + L2 * Math.cos(t2));
+    const t2o = -t2;
+    const t1o = Math.atan2(y, x) - Math.atan2(L2 * Math.sin(t2o), L1 + L2 * Math.cos(t2o));
+    return { ok: true, r, q: { t1: wrap(t1), t2: wrap(t2) }, other: { t1: wrap(t1o), t2: wrap(t2o) } };
+  }
+
+  /* ---------- 数值迭代法：阻尼最小二乘牛顿迭代 ---------- */
+  function solveNum(target, q0, lambda, maxIter) {
+    let t1 = q0.t1, t2 = q0.t2;
+    const history = [];
+    const t0 = performance.now();
+    let iters = 0, err = 0;
+
+    for (let k = 0; k <= maxIter; k++) {
+      const p = fk(t1, t2);
+      const ex = target.x - p.x, ey = target.y - p.y;
+      err = hypot(ex, ey);
+      history.push({ t1, t2, x: p.x, y: p.y, err });
+      if (err < TOL || k === maxIter) break;
+
+      const J = jac(t1, t2);
+      const a = J[0][0], b = J[0][1], c = J[1][0], d = J[1][1];
+      const l2 = lambda * lambda;
+      const A00 = a * a + b * b + l2;
+      const A01 = a * c + b * d;
+      const A11 = c * c + d * d + l2;
+      const det = A00 * A11 - A01 * A01;
+      const y0 = (A11 * ex - A01 * ey) / det;
+      const y1 = (-A01 * ex + A00 * ey) / det;
+      let dq1 = a * y0 + c * y1;
+      let dq2 = b * y0 + d * y1;
+
+      const n = hypot(dq1, dq2);
+      const MAXSTEP = 0.35;
+      if (n > MAXSTEP) { dq1 *= MAXSTEP / n; dq2 *= MAXSTEP / n; }
+      if (!isFinite(dq1) || !isFinite(dq2)) break;
+
+      t1 = wrap(t1 + dq1);
+      t2 = wrap(t2 + dq2);
+      iters++;
+    }
+    const time = performance.now() - t0;
+    return { history, iters, err, converged: err < TOL, time };
+  }
+
+  /* ---------- 关节限位 & 回代校验 ---------- */
+  function checkLimits(q) {
+    const d1 = q.t1 * DEG, d2 = q.t2 * DEG;
+    const bad = [];
+    if (d1 < LIM.t1[0] || d1 > LIM.t1[1]) bad.push("θ₁");
+    if (d2 < LIM.t2[0] || d2 > LIM.t2[1]) bad.push("θ₂");
+    return { ok: bad.length === 0, bad };
+  }
+  function verify(q, target) {
+    const p = fk(q.t1, q.t2);
+    const err = hypot(target.x - p.x, target.y - p.y);
+    return { p, err };
+  }
+
+  /* ========================================================
+     画布
+     ======================================================== */
+  const cv = document.getElementById("stage");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, SC = 1, OX = 0, OY = 0;
+  const px = x => OX + x * SC;
+  const py = y => OY - y * SC;
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  function resizeStage() {
+    const rect = cv.parentElement.getBoundingClientRect();
+    if (!rect.width) return;
+    W = rect.width; H = rect.height;
+    cv.width = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    SC = Math.min(W / 22, H / 13.4);
+    OX = W * 0.46;
+    // 让绘图内容（y ≈ -1.2 ~ 10.4）在画布中垂直居中
+    OY = (22 + H - 28) / 2 + 4.6 * SC;
+    draw();
+  }
+  new ResizeObserver(resizeStage).observe(cv.parentElement);
+
+  function line(x1, y1, x2, y2) {
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+
+  function drawGrid() {
+    const x0 = Math.floor((0 - OX) / SC), x1 = Math.ceil((W - OX) / SC);
+    const y0 = Math.floor((OY - H) / SC), y1 = Math.ceil(OY / SC);
+
+    ctx.lineWidth = 1;
+    for (let x = x0; x <= x1; x++) {
+      const major = x % 5 === 0;
+      ctx.strokeStyle = major ? "rgba(148,163,184,.13)" : "rgba(148,163,184,.05)";
+      line(px(x), 0, px(x), H);
+      if (major && x !== 0) {
+        ctx.fillStyle = "rgba(148,163,184,.38)";
+        ctx.font = '10px "SFMono-Regular",Consolas,monospace';
+        ctx.textAlign = "center";
+        ctx.fillText(x + "", px(x), OY + 15);
+      }
+    }
+    for (let y = y0; y <= y1; y++) {
+      const major = y % 5 === 0;
+      ctx.strokeStyle = major ? "rgba(148,163,184,.13)" : "rgba(148,163,184,.05)";
+      line(0, py(y), W, py(y));
+      if (major && y !== 0) {
+        ctx.fillStyle = "rgba(148,163,184,.38)";
+        ctx.font = '10px "SFMono-Regular",Consolas,monospace';
+        ctx.textAlign = "right";
+        ctx.fillText(y + "", OX - 8, py(y) + 3.5);
+      }
+    }
+
+    // 坐标轴
+    ctx.strokeStyle = "rgba(148,163,184,.35)";
+    ctx.lineWidth = 1.2;
+    line(0, OY, W, OY);
+    line(OX, H, OX, 0);
+
+    ctx.fillStyle = "rgba(148,163,184,.55)";
+    ctx.font = '600 11px "SFMono-Regular",Consolas,monospace';
+    ctx.textAlign = "left";
+    ctx.fillText("X (cm)", W - 68, OY - 9);
+    ctx.fillText("Y (cm)", OX + 9, 16);
+  }
+
+  function drawWorkspace() {
+    // 环带
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(OX, OY, RMAX * SC, 0, Math.PI * 2);
+    ctx.arc(OX, OY, RMIN * SC, 0, Math.PI * 2, true);
+    ctx.fillStyle = "rgba(34,211,238,.05)";
+    ctx.fill("evenodd");
+    ctx.restore();
+
+    ctx.save();
+    ctx.setLineDash([5, 5]);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(34,211,238,.28)";
+    ctx.beginPath(); ctx.arc(OX, OY, RMAX * SC, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "rgba(34,211,238,.16)";
+    ctx.beginPath(); ctx.arc(OX, OY, RMIN * SC, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(34,211,238,.32)";
+    ctx.font = '10.5px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign = "left";
+    ctx.fillText("工作空间 r ≤ 10", OX + RMAX * SC * 0.72, OY - RMAX * SC * 0.72 - 4);
+  }
+
+  function drawBase() {
+    // 底座
+    ctx.fillStyle = "rgba(148,163,184,.16)";
+    ctx.strokeStyle = "rgba(148,163,184,.4)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.roundRect(OX - 22, OY + 2, 44, 9, 3);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = "#0b1222";
+    ctx.strokeStyle = "rgba(203,213,225,.8)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(OX, OY, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "rgba(203,213,225,.9)";
+    ctx.beginPath(); ctx.arc(OX, OY, 2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function joint(x, y, color, r = 5.5) {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#08101d";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+  }
+
+  function drawArm(q, opt) {
+    const { t1, t2 } = q;
+    const a = { x: L1 * Math.cos(t1), y: L1 * Math.sin(t1) };
+    const b = fk(t1, t2);
+    const col = opt.color || "#22d3ee";
+    const w = opt.width || 5;
+    const alpha = opt.alpha == null ? 1 : opt.alpha;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // 连杆发光
+    ctx.strokeStyle = col;
+    ctx.lineCap = "round";
+    ctx.shadowColor = col;
+    ctx.shadowBlur = opt.glow == null ? 16 : opt.glow;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(OX, OY);
+    ctx.lineTo(px(a.x), py(a.y));
+    ctx.lineTo(px(b.x), py(b.y));
+    ctx.stroke();
+
+    // 内芯
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255,255,255,.55)";
+    ctx.lineWidth = Math.max(1, w * 0.28);
+    ctx.beginPath();
+    ctx.moveTo(OX, OY);
+    ctx.lineTo(px(a.x), py(a.y));
+    ctx.lineTo(px(b.x), py(b.y));
+    ctx.stroke();
+
+    joint(OX, OY, col, 4.5);
+    joint(px(a.x), py(a.y), col, 5);
+
+    if (opt.dot !== false) {
+      ctx.beginPath();
+      ctx.arc(px(b.x), py(b.y), 5, 0, Math.PI * 2);
+      ctx.fillStyle = col;
+      ctx.fill();
+      ctx.shadowColor = col; ctx.shadowBlur = 14;
+      ctx.fill();
+    }
+    ctx.restore();
+    return b;
+  }
+
+  function drawLabels(q) {
+    const { t1, t2 } = q;
+    const a = { x: L1 * Math.cos(t1), y: L1 * Math.sin(t1) };
+    const b = fk(t1, t2);
+
+    // θ1 弧
+    const r1 = Math.min(52, L1 * SC * 0.55);
+    ctx.save();
+    ctx.strokeStyle = "rgba(34,211,238,.5)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(OX, OY, r1, 0, -t1, t1 > 0);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(165,243,252,.9)";
+    ctx.font = 'italic 12px Georgia,serif';
+    ctx.textAlign = "left";
+    ctx.fillText("θ₁", OX + Math.cos(t1 / 2) * (r1 + 13), OY - Math.sin(t1 / 2) * (r1 + 13));
+
+    // θ2 弧
+    const r2 = Math.min(30, L2 * SC * 0.5);
+    ctx.strokeStyle = "rgba(34,211,238,.4)";
+    ctx.beginPath();
+    ctx.arc(px(a.x), py(a.y), r2, -t1, -(t1 + t2), t2 > 0);
+    ctx.stroke();
+    const mid = t1 + t2 / 2;
+    ctx.fillStyle = "rgba(165,243,252,.85)";
+    ctx.fillText("θ₂", px(a.x) + Math.cos(mid) * (r2 + 12), py(a.y) - Math.sin(mid) * (r2 + 12));
+
+    // 边长标注
+    const m1 = { x: a.x / 2, y: a.y / 2 };
+    ctx.fillStyle = "rgba(203,213,225,.78)";
+    ctx.font = '11px "SFMono-Regular",Consolas,monospace';
+    ctx.textAlign = "center";
+    ctx.fillText("L₁=6", px(m1.x) + Math.cos(t1 - Math.PI / 2) * 19, py(m1.y) - Math.sin(t1 - Math.PI / 2) * 19 + 4);
+
+    const m2 = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    ctx.fillText("L₂=4", px(m2.x) + Math.cos(t1 + t2 + Math.PI / 2) * 19, py(m2.y) - Math.sin(t1 + t2 + Math.PI / 2) * 19 + 4);
+    ctx.restore();
+  }
+
+  function drawTarget() {
+    const { x, y } = S.target;
+    const X = px(x), Y = py(y);
+    ctx.save();
+    ctx.strokeStyle = "#f472b6";
+    ctx.lineWidth = 1.4;
+    ctx.shadowColor = "#f472b6";
+    ctx.shadowBlur = 12;
+
+    ctx.beginPath(); ctx.arc(X, Y, 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(X, Y, 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = "#f472b6"; ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.setLineDash([3, 3]);
+    ctx.globalAlpha = .75;
+    line(X - 15, Y, X - 9, Y);
+    line(X + 9, Y, X + 15, Y);
+    line(X, Y - 15, X, Y - 9);
+    line(X, Y + 9, X, Y + 15);
+    ctx.restore();
+
+    // 目标半径虚线
+    ctx.save();
+    ctx.setLineDash([4, 6]);
+    ctx.strokeStyle = "rgba(244,114,182,.28)";
+    ctx.lineWidth = 1;
+    line(OX, OY, X, Y);
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(244,114,182,.9)";
+    ctx.font = '11px "SFMono-Regular",Consolas,monospace';
+    ctx.textAlign = "left";
+    ctx.fillText("(" + x.toFixed(2) + ", " + y.toFixed(2) + ")", X + 13, Y - 10);
+
+    // 工作空间外：红色警示
+    if (S.geo && !S.geo.ok) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(248,113,113,.75)";
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.arc(X, Y, 14, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(X - 6, Y - 6); ctx.lineTo(X + 6, Y + 6);
+      ctx.moveTo(X + 6, Y - 6); ctx.lineTo(X - 6, Y + 6);
+      ctx.stroke();
+      ctx.fillStyle = "#fca5a5";
+      ctx.font = '600 11.5px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign = "center";
+      ctx.fillText("无解 · 超出工作空间", X, Y + 33);
+      ctx.restore();
+    }
+  }
+
+  function drawGeoTriangle(q) {
+    const a = { x: L1 * Math.cos(q.t1), y: L1 * Math.sin(q.t1) };
+    const b = fk(q.t1, q.t2);
+    ctx.save();
+    ctx.setLineDash([3, 5]);
+    ctx.strokeStyle = "rgba(34,211,238,.22)";
+    ctx.lineWidth = 1;
+    line(px(a.x), py(a.y), px(b.x), py(b.y));
+    line(OX, OY, px(b.x), py(b.y));
+    ctx.restore();
+  }
+
+  function drawNumTrail() {
+    const num = S.num;
+    if (!num) return;
+    const hist = num.history;
+    const idx = S.play.active
+      ? Math.min(Math.floor(S.play.t), hist.length - 1)
+      : hist.length - 1;
+    if (idx < 1) return;
+
+    // 末端轨迹
+    ctx.save();
+    ctx.strokeStyle = "rgba(251,191,36,.55)";
+    ctx.lineWidth = 1.3;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    for (let i = 0; i <= idx; i++) {
+      const p = hist[i];
+      const X = px(p.x), Y = py(p.y);
+      if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // 迭代过程幽灵手臂
+    for (let i = 0; i < idx; i++) {
+      const p = hist[i];
+      const al = 0.05 + 0.3 * (i / Math.max(1, idx));
+      ctx.save();
+      ctx.globalAlpha = al;
+      ctx.strokeStyle = "#fbbf24";
+      ctx.lineWidth = 1.6;
+      const a1 = { x: L1 * Math.cos(p.t1), y: L1 * Math.sin(p.t1) };
+      ctx.beginPath();
+      ctx.moveTo(OX, OY);
+      ctx.lineTo(px(a1.x), py(a1.y));
+      ctx.lineTo(px(p.x), py(p.y));
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(px(p.x), py(p.y), 2.4, 0, Math.PI * 2);
+      ctx.fillStyle = "#fbbf24";
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawErrorLine() {
+    const num = S.num;
+    if (!num || !num.history.length) return;
+    const last = num.history[S.play.active ? Math.min(Math.floor(S.play.t), num.history.length - 1) : num.history.length - 1];
+    const err = hypot(S.target.x - last.x, S.target.y - last.y);
+    if (err < 0.02) return;
+    ctx.save();
+    ctx.setLineDash([2, 4]);
+    ctx.strokeStyle = "rgba(248,113,113,.85)";
+    ctx.lineWidth = 1.4;
+    line(px(last.x), py(last.y), px(S.target.x), py(S.target.y));
+    const mx = (px(last.x) + px(S.target.x)) / 2;
+    const my = (py(last.y) + py(S.target.y)) / 2;
+    ctx.fillStyle = "#fca5a5";
+    ctx.font = '10.5px "SFMono-Regular",Consolas,monospace';
+    ctx.textAlign = "center";
+    ctx.fillText((err * 10).toFixed(2) + " mm", mx, my - 6);
+    ctx.restore();
+  }
+
+  function draw() {
+    if (!W) return;
+    ctx.clearRect(0, 0, W, H);
+
+    drawGrid();
+    drawWorkspace();
+    drawBase();
+
+    if (S.mode !== "num" && S.geo && S.geo.ok) {
+      drawGeoTriangle(S.geo.q);
+    }
+    if (S.mode !== "num" && S.geo && S.geo.ok) {
+      // 另一分支（淡）
+      drawArm(S.geo.other, { color: "#22d3ee", alpha: .13, width: 2.6, glow: 0, dot: false });
+      drawArm(S.geo.q, { color: "#22d3ee", width: 5 });
+      drawLabels(S.geo.q);
+    }
+
+    if (S.mode !== "geo" && S.num) {
+      drawNumTrail();
+      // 初值手臂
+      drawArm(S.q0, { color: "#7f8ea8", alpha: .35, width: 2, glow: 0, dot: false });
+      const idx = S.play.active
+        ? Math.min(Math.floor(S.play.t), S.num.history.length - 1)
+        : S.num.history.length - 1;
+      const p = S.num.history[idx];
+      drawArm({ t1: p.t1, t2: p.t2 }, { color: "#fbbf24", width: 4.4, alpha: S.play.active ? .92 : 1 });
+      drawErrorLine();
+    }
+
+    drawTarget();
+
+    // 左上角实时状态
+    ctx.save();
+    ctx.font = '600 11.5px "SFMono-Regular",Consolas,monospace';
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(148,163,184,.62)";
+    const lines = [
+      "mode: " + (S.mode === "both" ? "geo + num" : S.mode),
+      "L1/L2: 6 / 4 cm",
+      "target: (" + S.target.x.toFixed(2) + ", " + S.target.y.toFixed(2) + ")"
+    ];
+    lines.forEach((t, i) => ctx.fillText(t, 16, 22 + i * 15));
+    ctx.restore();
+  }
+
+  /* ========================================================
+     误差收敛图
+     ======================================================== */
+  const chart = document.getElementById("chart");
+  function drawChart() {
+    const g = chart.getContext("2d");
+    const rect = chart.getBoundingClientRect();
+    if (!rect.width) return;
+    chart.width = Math.round(rect.width * DPR);
+    chart.height = Math.round(rect.height * DPR);
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const w = rect.width, h = rect.height;
+    g.clearRect(0, 0, w, h);
+
+    const hist = S.num ? S.num.history : [];
+    if (hist.length < 2) return;
+
+    const pad = { l: 40, r: 8, t: 10, b: 16 };
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+    const errs = hist.map(p => Math.max(p.err, 1e-6));
+    const maxE = Math.max(...errs);
+    const hi = Math.pow(10, Math.ceil(Math.log10(Math.max(maxE, 1e-3))));
+    const lo = 1e-5;
+    const yOf = v => pad.t + ih * (1 - (Math.log10(Math.max(v, lo)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)));
+
+    // 网格
+    g.font = '9px "SFMono-Regular",Consolas,monospace';
+    g.textAlign = "right";
+    g.textBaseline = "middle";
+    for (let e = Math.log10(lo); e <= Math.log10(hi) + 1e-9; e++) {
+      const v = Math.pow(10, e);
+      const y = yOf(v);
+      g.strokeStyle = "rgba(148,163,184,.10)";
+      g.beginPath(); g.moveTo(pad.l, y); g.lineTo(w - pad.r, y); g.stroke();
+      g.fillStyle = "rgba(148,163,184,.45)";
+      g.fillText(v >= 1 ? v.toFixed(0) : v.toFixed(-Math.floor(Math.log10(v))), pad.l - 5, y);
+    }
+
+    // 容差线
+    const yt = yOf(TOL);
+    g.save();
+    g.setLineDash([3, 3]);
+    g.strokeStyle = "rgba(74,222,128,.5)";
+    g.beginPath(); g.moveTo(pad.l, yt); g.lineTo(w - pad.r, yt); g.stroke();
+    g.restore();
+
+    const xOf = i => pad.l + (hist.length === 1 ? 0 : iw * i / (hist.length - 1));
+
+    // 曲线
+    g.beginPath();
+    hist.forEach((p, i) => {
+      const x = xOf(i), y = yOf(p.err);
+      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    });
+    g.strokeStyle = "#fbbf24";
+    g.lineWidth = 1.8;
+    g.shadowColor = "rgba(251,191,36,.6)";
+    g.shadowBlur = 8;
+    g.stroke();
+    g.shadowBlur = 0;
+
+    hist.forEach((p, i) => {
+      const x = xOf(i), y = yOf(p.err);
+      g.beginPath(); g.arc(x, y, 2.4, 0, Math.PI * 2);
+      g.fillStyle = i === hist.length - 1 ? "#fbbf24" : "rgba(251,191,36,.55)";
+      g.fill();
+    });
+
+    g.fillStyle = "rgba(148,163,184,.4)";
+    g.textAlign = "right";
+    g.textBaseline = "alphabetic";
+    g.fillText("迭代步 k", w - pad.r, h - 3);
+  }
+
+  /* ========================================================
+     渲染面板 / 表格
+     ======================================================== */
+  const el = id => document.getElementById(id);
+  const d2 = v => v.toFixed(2);
+  const deg = v => v * DEG;
+
+  function fmtAngle(v) {
+    let d = deg(v);
+    const s = d.toFixed(2);
+    return (d < 0 ? "−" + Math.abs(d).toFixed(2) : d.toFixed(2)) + "°";
+  }
+
+  function wsInfo() {
+    const r = hypot(S.target.x, S.target.y);
+    if (r > RMAX) return { ok: false, kind: "over", text: "超出最大伸展：r = " + d2(r) + " cm > 10 cm，无解" };
+    if (r < RMIN) return { ok: false, kind: "under", text: "小于最小折叠：r = " + d2(r) + " cm < 2 cm，无解" };
+    if (r > RMAX - 0.05) return { ok: true, kind: "edge", text: "接近最大伸展边界（r = " + d2(r) + " cm），接近奇异" };
+    return { ok: true, kind: "ok", text: "目标在工作空间环带内（2 cm ≤ r ≤ 10 cm）" };
+  }
+
+  function render() {
+    const { x, y } = S.target;
+    const r = hypot(x, y);
+
+    el("tgtX").textContent = x.toFixed(3);
+    el("tgtY").textContent = y.toFixed(3);
+    el("tgtR").textContent = r.toFixed(3);
+
+    const ws = wsInfo();
+    const st = el("wsStatus");
+    st.className = "status " + (ws.ok ? (ws.kind === "edge" ? "warn" : "ok") : "bad");
+    st.textContent = ws.text;
+    const tag = el("wsTag");
+    tag.textContent = ws.ok ? (ws.kind === "edge" ? "边界" : "可达") : "无解";
+    tag.className = "tag " + (ws.ok ? (ws.kind === "edge" ? "amber" : "green") : "red");
+
+    /* ---- 解析法 ---- */
+    const geo = S.geo;
+    const gv = el("geoVerify");
+    if (geo.ok) {
+      el("geo1").textContent = fmtAngle(geo.q.t1);
+      el("geo2").textContent = fmtAngle(geo.q.t2);
+      el("geo1b").textContent = fmtAngle(geo.other.t1);
+      el("geo2b").textContent = fmtAngle(geo.other.t2);
+
+      const v = verify(geo.q, S.target);
+      const lim = checkLimits(geo.q);
+      gv.className = "status " + (lim.ok ? "ok" : "bad");
+      gv.textContent = (lim.ok ? "✓ 回代 " : "✗ 限位越界 ") +
+        "(" + v.p.x.toFixed(3) + ", " + v.p.y.toFixed(3) + ") cm · 误差 " +
+        (v.err * 1000).toFixed(4) + " mm · " + (lim.ok ? "限位合法" : lim.bad.join("/") + " 越限");
+    } else {
+      el("geo1").textContent = "无解";
+      el("geo2").textContent = "无解";
+      el("geo1b").textContent = "—";
+      el("geo2b").textContent = "—";
+      gv.className = "status bad";
+      gv.textContent = "✗ 几何判定无解：" + (geo.reason === "over" ? "r > L₁+L₂" : "r < |L₁−L₂|");
+    }
+
+    /* ---- 数值法 ---- */
+    const num = S.num;
+    const nst = el("numStatus");
+    el("numIter").textContent = num.iters + " 次";
+    el("numErr").textContent = (num.err * 1000).toFixed(3) + " mm";
+    const last = num.history[num.history.length - 1];
+    el("numQ").textContent = deg(last.t1).toFixed(1) + "° / " + deg(last.t2).toFixed(1) + "°";
+    const manip = Math.abs(L1 * L2 * Math.sin(last.t2));
+    el("numManip").textContent = manip.toFixed(2) + " cm²";
+
+    if (num.converged) {
+      const lim = checkLimits({ t1: last.t1, t2: last.t2 });
+      nst.className = "status " + (lim.ok ? "ok" : "bad");
+      nst.textContent = lim.ok
+        ? "✓ 已收敛：" + num.iters + " 次迭代，误差 " + (num.err * 1000).toFixed(3) + " mm，限位合法"
+        : "⚠ 已收敛但 " + lim.bad.join("/") + " 越限，需换初值";
+    } else if (!ws.ok) {
+      nst.className = "status bad";
+      nst.textContent = "✗ 目标不可达：迭代停在边界，残余误差 " + (num.err * 1000).toFixed(2) + " mm";
+    } else {
+      nst.className = "status warn";
+      nst.textContent = "⚠ 未收敛（达到最大迭代 " + S.maxIter + " 次），误差 " + (num.err * 1000).toFixed(2) + " mm";
+    }
+
+    /* ---- 迭代表 ---- */
+    renderIterTable();
+
+    /* ---- 对比表 ---- */
+    el("cmpIter").textContent = num.iters + " 次";
+    el("cmpGeoErr").textContent = geo.ok ? (verify(geo.q, S.target).err * 1000).toFixed(4) + " mm" : "无解";
+    el("cmpNumErr").textContent = (num.err * 1000).toFixed(3) + " mm";
+    el("cmpGeoT").textContent = S.geoTime.toFixed(3) + " ms";
+    el("cmpNumT").textContent = num.time.toFixed(3) + " ms";
+    el("cmpCheck").innerHTML = geo.ok && checkLimits(geo.q).ok && num.converged
+      ? '<span class="ok-i">限位合法 · 回代误差合格</span>'
+      : '<span class="bad-i">存在未通过的检查项</span>';
+
+    /* ---- 当前姿态 ---- */
+    const cur = num.history[num.history.length - 1];
+    el("curQ1").textContent = deg(cur.t1).toFixed(2) + "°";
+    el("curQ2").textContent = deg(cur.t2).toFixed(2) + "°";
+
+    drawChart();
+  }
+
+  function renderIterTable() {
+    const body = el("iterBody");
+    const num = S.num;
+    if (!num) return;
+    const idx = S.play.active
+      ? Math.min(Math.floor(S.play.t), num.history.length - 1)
+      : num.history.length - 1;
+    let html = "";
+    for (let i = 0; i <= idx; i++) {
+      const p = num.history[i];
+      html += "<tr" + (i === idx ? ' class="cur"' : "") + "><td>" + i + "</td><td>" +
+        deg(p.t1).toFixed(2) + "</td><td>" + deg(p.t2).toFixed(2) + "</td><td>" +
+        (p.err * 1000).toFixed(4) + "</td></tr>";
+    }
+    body.innerHTML = html;
+  }
+
+  /* ========================================================
+     求解流程
+     ======================================================== */
+  function solveAll(replay = true) {
+    // 解析法（含耗时统计）
+    const t0 = performance.now();
+    let acc = 0;
+    for (let i = 0; i < 300; i++) solveGeo(S.target, S.branch);
+    acc = (performance.now() - t0) / 300;
+    S.geoTime = acc;
+    S.geo = solveGeo(S.target, S.branch);
+
+    // 数值法
+    S.num = solveNum(S.target, S.q0, S.lambda, S.maxIter);
+
+    if (replay) {
+      S.play.t = 0;
+      S.play.active = true;
+    } else {
+      S.play.t = 999;
+      S.play.active = false;
+    }
+    render();
+    draw();
+  }
+
+  function setTarget(x, y, opts = {}) {
+    S.target.x = x;
+    S.target.y = y;
+    if (opts.silent) { render(); draw(); return; }
+    solveAll(true);
+  }
+
+  /* ========================================================
+     动画循环
+     ======================================================== */
+  let last = 0;
+  function tick(t) {
+    const dt = Math.min(50, t - last || 16) / 1000;
+    last = t;
+    if (S.play.active && S.num) {
+      S.play.t += dt * 14;
+      if (S.play.t >= S.num.history.length - 1) {
+        S.play.t = S.num.history.length - 1;
+        S.play.active = false;
+        render();
+      } else {
+        renderIterTable();
+      }
+    }
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  /* ========================================================
+     交互
+     ======================================================== */
+  // 模式切换
+  document.querySelectorAll("#modeSeg button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#modeSeg button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      S.mode = btn.dataset.mode;
+      draw();
+    });
+  });
+
+  // 画布拖动
+  function canvasPoint(e) {
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left), y: (e.clientY - r.top) };
+  }
+  function updateTargetFromPointer(e) {
+    const p = canvasPoint(e);
+    let wx = (p.x - OX) / SC;
+    let wy = (OY - p.y) / SC;
+    wx = clamp(wx, -6, 14);
+    wy = clamp(wy, -4, 12);
+    S.target.x = wx;
+    S.target.y = wy;
+    solveAll(true);
+  }
+  cv.addEventListener("pointerdown", e => {
+    S.dragging = true;
+    cv.setPointerCapture(e.pointerId);
+    updateTargetFromPointer(e);
+  });
+  cv.addEventListener("pointermove", e => {
+    if (!S.dragging) return;
+    updateTargetFromPointer(e);
+  });
+  cv.addEventListener("pointerup", e => {
+    S.dragging = false;
+    try { cv.releasePointerCapture(e.pointerId); } catch (_) {}
+  });
+  cv.addEventListener("pointercancel", () => { S.dragging = false; });
+
+  // 预设
+  const presets = {
+    multi: [6, 4],
+    over: [11, 0],
+    under: [1, 0],
+    sing: [10, 0]
+  };
+  document.querySelectorAll("[data-preset]").forEach(b => {
+    b.addEventListener("click", () => {
+      const p = presets[b.dataset.preset];
+      setTarget(p[0], p[1]);
+      if (b.dataset.preset === "sing") S.branch = "up";
+      toast("已载入目标 (" + p[0] + ", " + p[1] + ") cm");
+    });
+  });
+
+  // 切换分支
+  el("branchBtn").addEventListener("click", () => {
+    S.branch = S.branch === "up" ? "down" : "up";
+    solveAll(true);
+    toast(S.branch === "up" ? "当前：肘上解 (θ₂ > 0)" : "当前：肘下解 (θ₂ < 0)");
+  });
+
+  // 参数
+  function bindSlider(id, valId, fmt, apply) {
+    const input = el(id), out = el(valId);
+    const upd = () => {
+      out.textContent = fmt(parseFloat(input.value));
+      apply(parseFloat(input.value));
+    };
+    input.addEventListener("input", upd);
+    return upd;
+  }
+  bindSlider("q0a", "q0aV", v => (v < 0 ? "−" + Math.abs(v) : v) + "°", v => {
+    S.q0.t1 = v * RAD;
+    solveAll(true);
+  });
+  bindSlider("q0b", "q0bV", v => (v < 0 ? "−" + Math.abs(v) : v) + "°", v => {
+    S.q0.t2 = v * RAD;
+    solveAll(true);
+  });
+  bindSlider("lam", "lamV", v => (v / 100).toFixed(2), v => {
+    S.lambda = v / 100;
+    solveAll(true);
+  });
+
+  el("replayBtn").addEventListener("click", () => {
+    S.play.t = 0;
+    S.play.active = true;
+    renderIterTable();
+  });
+  el("stepBtn").addEventListener("click", () => {
+    if (!S.num) return;
+    S.play.active = false;
+    const cur = Math.min(Math.floor(S.play.t), S.num.history.length - 1);
+    S.play.t = Math.min(cur + 1, S.num.history.length - 1);
+    renderIterTable();
+    draw();
+  });
+  el("resetBtn").addEventListener("click", () => {
+    el("q0a").value = 30; el("q0aV").textContent = "30°"; S.q0.t1 = 30 * RAD;
+    el("q0b").value = -60; el("q0bV").textContent = "−60°"; S.q0.t2 = -60 * RAD;
+    el("lam").value = 8; el("lamV").textContent = "0.08"; S.lambda = 0.08;
+    setTarget(6, 4);
+    toast("已恢复默认参数");
+  });
+  el("randBtn").addEventListener("click", () => {
+    const ang = Math.random() * Math.PI * 2;
+    const r = RMIN + Math.random() * (RMAX - RMIN) * 0.92;
+    setTarget(+(r * Math.cos(ang)).toFixed(2), +(r * Math.sin(ang)).toFixed(2));
+  });
+
+  /* ========================================================
+     末端方向控制
+     ======================================================== */
+  const STEP = 0.5; // cm
+  const dirVec = { left: [-STEP, 0], right: [STEP, 0], up: [0, STEP], down: [0, -STEP] };
+  const dirName = { left: "−X", right: "+X", up: "+Y", down: "−Y" };
+
+  document.querySelectorAll("[data-dir]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const d = dirVec[btn.dataset.dir];
+      const nx = +(S.target.x + d[0]).toFixed(4);
+      const ny = +(S.target.y + d[1]).toFixed(4);
+      const r = hypot(nx, ny);
+
+      let ok = false, reason = "", q = null, verr = 0;
+      if (r > RMAX || r < RMIN) {
+        reason = r > RMAX ? "超出工作空间（r=" + d2(r) + " > 10 cm）" : "小于最小折叠（r=" + d2(r) + " < 2 cm）";
+      } else {
+        const g = solveGeo({ x: nx, y: ny }, S.branch);
+        if (!g.ok) reason = "几何无解";
+        else {
+          const lim = checkLimits(g.q);
+          const v = verify(g.q, { x: nx, y: ny });
+          if (!lim.ok) reason = lim.bad.join("/") + " 越限";
+          else if (v.err * 1000 > 1) reason = "回代误差过大";
+          else { ok = true; q = g.q; verr = v.err; }
+        }
+      }
+
+      const entry = {
+        dir: dirName[btn.dataset.dir],
+        target: [nx, ny],
+        q: ok ? q : null,
+        err: ok ? verr : null,
+        ok,
+        reason
+      };
+      S.log.unshift(entry);
+      renderLog();
+
+      if (ok) {
+        setTarget(nx, ny);
+        el("dirStatus").className = "status ok";
+        toast("✓ " + dirName[btn.dataset.dir] + " 到 (" + nx.toFixed(2) + ", " + ny.toFixed(2) + ")，逆解成功");
+      } else {
+        // 失败时保持当前姿态，不乱跳
+        el("dirStatus").className = "status bad";
+        toast("✗ 拒绝执行：" + reason + "（姿态保持不变）");
+      }
+      el("dirStatus").innerHTML = ok
+        ? '✓ 已到达 (' + nx.toFixed(2) + ', ' + ny.toFixed(2) + ') cm ｜ 当前姿态 θ₁ = <span id="curQ1">' + deg(q.t1).toFixed(2) + '°</span>，θ₂ = <span id="curQ2">' + deg(q.t2).toFixed(2) + '°</span>'
+        : '✗ ' + reason + ' ｜ 页面保持当前姿态 θ₁ = <span id="curQ1">' + deg(S.num.history[S.num.history.length - 1].t1).toFixed(2) + '°</span>，θ₂ = <span id="curQ2">' + deg(S.num.history[S.num.history.length - 1].t2).toFixed(2) + '°</span>';
+    });
+  });
+
+  function renderLog() {
+    const wrap = el("logWrap");
+    el("logCount").textContent = S.log.length + " 条";
+    if (!S.log.length) {
+      wrap.innerHTML = '<div class="empty">点击方向按钮，记录一次完整的「逆解—回代」闭环</div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>方向</th><th>新目标 (cm)</th><th>θ₁ / θ₂ (°)</th><th>误差 (mm)</th><th>结果</th></tr></thead><tbody>';
+    S.log.slice(0, 40).forEach(e => {
+      html += "<tr><td>" + e.dir + "</td><td>" + e.target[0].toFixed(2) + ", " + e.target[1].toFixed(2) + "</td><td>" +
+        (e.ok ? deg(e.q.t1).toFixed(2) + " / " + deg(e.q.t2).toFixed(2) : "—") + "</td><td>" +
+        (e.ok ? (e.err * 1000).toFixed(3) : "—") + "</td><td class=\"" +
+        (e.ok ? "ok-i" : "bad-i") + "\">" + (e.ok ? "✓ 成功" : "✗ " + e.reason) + "</td></tr>";
+    });
+    html += "</tbody></table>";
+    wrap.innerHTML = html;
+  }
+
+  /* ========================================================
+     实验记录导出
+     ======================================================== */
+  el("copyBtn").addEventListener("click", () => {
+    const geoText = S.geo.ok
+      ? "θ₁ = " + deg(S.geo.q.t1).toFixed(2) + "°, θ₂ = " + deg(S.geo.q.t2).toFixed(2) +
+        "°（另一分支：" + deg(S.geo.other.t1).toFixed(2) + "°, " + deg(S.geo.other.t2).toFixed(2) + "°）"
+      : "无解";
+    const v = S.geo.ok ? verify(S.geo.q, S.target) : null;
+    const last = S.num.history[S.num.history.length - 1];
+    const txt = [
+      "# 3.3 逆运动学与求解验证 · 实验记录",
+      "",
+      "- 模型：平面二连杆 L₁=6cm, L₂=4cm；工作空间 2~10 cm",
+      "- 目标位置：(" + S.target.x.toFixed(3) + ", " + S.target.y.toFixed(3) + ") cm，r = " + hypot(S.target.x, S.target.y).toFixed(3) + " cm",
+      "- 工作空间判定：" + wsInfo().text,
+      "",
+      "## 几何解析法",
+      "- 候选关节角：" + geoText,
+      "- 正解回代：" + (v ? "(" + v.p.x.toFixed(3) + ", " + v.p.y.toFixed(3) + ") cm，误差 " + (v.err * 1000).toFixed(4) + " mm" : "—"),
+      "- 限位检查：" + (S.geo.ok ? (checkLimits(S.geo.q).ok ? "合法（θ₁∈±170°, θ₂∈±150°）" : checkLimits(S.geo.q).bad.join("/") + " 越限") : "—"),
+      "",
+      "## 数值迭代法（阻尼最小二乘）",
+      "- 初值：θ₁ = " + deg(S.q0.t1).toFixed(1) + "°, θ₂ = " + deg(S.q0.t2).toFixed(1) + "°，λ = " + S.lambda.toFixed(2),
+      "- 迭代次数：" + S.num.iters + "，最终误差：" + (S.num.err * 1000).toFixed(3) + " mm",
+      "- 收敛结果：θ₁ = " + deg(last.t1).toFixed(2) + "°, θ₂ = " + deg(last.t2).toFixed(2) + "°"
+    ].join("\n");
+
+    const done = () => toast("实验记录已复制到剪贴板");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(done).catch(fallback);
+    } else fallback();
+
+    function fallback() {
+      const ta = document.createElement("textarea");
+      ta.value = txt;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); done(); } catch (_) { toast("复制失败，请手动选择"); }
+      document.body.removeChild(ta);
+    }
+  });
+
+  /* ========================================================
+     Toast
+     ======================================================== */
+  let toastTimer = null;
+  function toast(msg) {
+    const t = el("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+
+  /* ========================================================
+     启动
+     ======================================================== */
+  resizeStage();
+  solveAll(true);
+  requestAnimationFrame(tick);
+
+  // 页面缩放时重绘图表
+  window.addEventListener("resize", () => { resizeStage(); drawChart(); });
+})();
+</script>
+</body>
+</html>
